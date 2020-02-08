@@ -36,3 +36,5 @@ target/**
 .idea
 .idea/
 .idea/**
+
+*.log

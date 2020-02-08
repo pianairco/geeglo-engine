@@ -2,6 +2,7 @@ package ir.geeglo.game.loader.ms3d;
 
 import org.apache.commons.lang3.ArrayUtils;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -10,9 +11,19 @@ public class MS3DFileReaderUtil {
     int readed;
     byte[] temp;
     ByteBuffer wrapped;
-    InputStream inputStream;
+    BufferedInputStream inputStream;
+
     public MS3DFileReaderUtil(InputStream inputStream) {
-        this.inputStream = inputStream;
+        this.inputStream = new BufferedInputStream(inputStream);
+    }
+
+    boolean available() {
+        try {
+            return inputStream.available() > 0;
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     byte readByte() throws IOException {
@@ -79,5 +90,12 @@ public class MS3DFileReaderUtil {
         temp = new byte[length];
         readed += inputStream.read(temp, 0, length);
         return new String(temp);
+    }
+
+    String readStringFreeSize(int length) throws IOException {
+        temp = new byte[length];
+        readed += inputStream.read(temp, 0, length);
+        String tempString = new String(temp);
+        return tempString.substring(0, tempString.indexOf("\000"));
     }
 }

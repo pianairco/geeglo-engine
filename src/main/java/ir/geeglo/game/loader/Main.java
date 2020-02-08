@@ -1,21 +1,23 @@
-package ir.geeglo.game;
+package ir.geeglo.game.loader;
 
 import ir.geeglo.game.loader.ms3d.MS3DModelLoader;
 import ir.geeglo.game.loader.ms3d.MS3DModelRenderer;
-import org.lwjgl.*;
-import org.lwjgl.glfw.*;
-import org.lwjgl.opengl.*;
-import org.lwjgl.system.*;
+import org.lwjgl.Version;
+import org.lwjgl.glfw.GLFWErrorCallback;
+import org.lwjgl.glfw.GLFWVidMode;
+import org.lwjgl.opengl.GL;
+import org.lwjgl.system.MemoryStack;
 
-import java.nio.*;
+import java.nio.IntBuffer;
 
-import static org.lwjgl.glfw.Callbacks.*;
+import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.system.MemoryStack.*;
-import static org.lwjgl.system.MemoryUtil.*;
+import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.system.MemoryUtil.NULL;
+//import static org.lwjgl.util.glu.GLU.gluPerspective;
 
-public class HelloWorld {
+public class Main {
 
     // The window handle
     private long window;
@@ -24,6 +26,22 @@ public class HelloWorld {
         System.out.println("Hello LWJGL " + Version.getVersion() + "!");
 
         init();
+
+        int width = 480;
+        int height = 640;
+
+        glViewport(0,0, width, height);
+
+        float aspect=(float)width/(float) height;
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+
+//        gluPerspective(45,(float)width/(float)height,1,100000);
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
         loop();
 
         // Free the window callbacks and destroy the window
@@ -58,7 +76,7 @@ public class HelloWorld {
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
 
         // Create the window
-        window = glfwCreateWindow(300, 300, "Hello World!", NULL, NULL);
+        window = glfwCreateWindow(480, 640, "Hello World!", NULL, NULL);
         if ( window == NULL )
             throw new RuntimeException("Failed to create the GLFW window");
 
@@ -124,7 +142,7 @@ public class HelloWorld {
     }
 
     public static void main(String[] args) {
-        new HelloWorld().run();
+        new Main().run();
     }
 
 }

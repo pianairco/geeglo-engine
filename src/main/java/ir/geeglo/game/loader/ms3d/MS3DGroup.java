@@ -7,5 +7,5 @@ public class MS3DGroup {
     String name;
     Vector<Short> triangleIndices;
     byte materialIndex;
-    Vector<Byte> comment;
+    String comment;
 }

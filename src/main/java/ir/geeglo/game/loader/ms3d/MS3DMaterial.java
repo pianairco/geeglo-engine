@@ -3,7 +3,7 @@ package ir.geeglo.game.loader.ms3d;
 import java.util.Vector;
 
 public class MS3DMaterial {
-    byte[] name = new byte[32];
+    String name;
     float[] ambient = new float[4];
     float[] diffuse = new float[4];
     float[] specular = new float[4];
@@ -11,8 +11,8 @@ public class MS3DMaterial {
     float shininess;
     float transparency;
     byte mode;
-    byte[] texture = new byte[MS3DModelLoader.Consts.MAX_TEXTURE_FILENAME_SIZE];
-    byte[] alphamap = new byte[MS3DModelLoader.Consts.MAX_TEXTURE_FILENAME_SIZE];
+    String texture;//new byte[MS3DModelLoader.Consts.MAX_TEXTURE_FILENAME_SIZE];
+    String alphamap;//new byte[MS3DModelLoader.Consts.MAX_TEXTURE_FILENAME_SIZE];
     int id;
-    Vector<Byte> comment;
+    String comment;
 }

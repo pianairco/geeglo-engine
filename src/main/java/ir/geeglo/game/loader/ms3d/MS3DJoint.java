@@ -4,8 +4,8 @@ import java.util.Vector;
 
 public class MS3DJoint {
     byte flags;
-    byte[] name = new byte[32];
-    byte[] parentName = new byte[32];
+    String name;
+    String parentName;
 
     float[] rot = new float[3];
     float[] pos = new float[3];
@@ -14,7 +14,7 @@ public class MS3DJoint {
     Vector<MS3DKeyFrame> positionKeys;
     Vector<MS3DTangent> tangents;
 
-    Vector<Byte> comment;
+    String comment;
     float[] color = new float[3];
 
     // used for rendering

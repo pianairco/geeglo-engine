@@ -1,9 +1,6 @@
 package ir.geeglo.game.loader.ms3d;
 
-import org.apache.commons.lang3.ArrayUtils;
-
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.Vector;
 
 public class MS3DModelLoader {
@@ -45,7 +42,7 @@ public class MS3DModelLoader {
     Vector<MS3DGroup> model_groups;
     Vector<MS3DMaterial> model_materials;
     Vector<MS3DJoint> model_joints;
-    Vector<Byte> model_comment;
+    String model_comment;
 
     //------------------------------------------------------
     //---- model inclusive
@@ -69,11 +66,11 @@ public class MS3DModelLoader {
     //----
     //------------------------------------------------------
 
-    float[] group_joints_array;
+    float[][] group_joints_array;
     float[] color_joints_array;
     float[] p_color_joints_array;
 
-    float[] group_vertices_array;
+    float[][] group_vertices_array;
     float[] normals_array;
     float[] tex_coord_array;
 
@@ -84,7 +81,7 @@ public class MS3DModelLoader {
     short[] joints_indices;
     short[] p_joints_indices;
 
-    short[] vertices_indices;
+    short[][] vertices_indices;
 
     //------------------------------------------------------
     //----
@@ -114,11 +111,12 @@ public class MS3DModelLoader {
     //---- variable bones
     //------------------------------------------------------
 
-    byte[] parent;
+    String[] parent;
 
     public static void main(String[] args) {
         MS3DModelLoader ms3DModelLoader = new MS3DModelLoader();
-        ms3DModelLoader.initModel("./Models/dwarf1.ms3d");
+        ms3DModelLoader.initModel("./Models/dwarf2.ms3d");
+        ms3DModelLoader.loadModel();
     }
 
     void ModelClear() {
@@ -147,7 +145,7 @@ public class MS3DModelLoader {
         if (model_joints != null)
             model_joints.clear();
         if (model_comment != null)
-            model_comment.clear();
+            model_comment = null;
     }
 
     boolean isCorrectID(String id) {
@@ -220,9 +218,10 @@ public class MS3DModelLoader {
             }
             model_triangles = new Vector<>(numTriangles);
 
-            for (int i = 0; i < numTriangles; i++) {
+            int i;
+            for (i = 0; i < numTriangles; i++) {
                 MS3DTriangle triangle = new MS3DTriangle();
-                triangle.flags = reader.readByte();
+                triangle.flags = reader.readShort();
                 triangle.vertexIndices[0] = reader.readShort();
                 triangle.vertexIndices[1] = reader.readShort();
                 triangle.vertexIndices[2] = reader.readShort();
@@ -260,7 +259,7 @@ public class MS3DModelLoader {
             numGroupTriangles = new short[numGroups];
             numGroupIndices = new int[numGroups];
 
-            for (int i = 0; i < numGroups; i++) {
+            for (i = 0; i < numGroups; i++) {
                 MS3DGroup group = new MS3DGroup();
                 group.flags = reader.readByte();
                 group.name = reader.readString(32);
@@ -277,6 +276,244 @@ public class MS3DModelLoader {
                 model_groups.add(group);
             }
 
+            //----------------------------------
+            // --------------number of materials
+            // ----------------------------------
+
+            numMaterials = reader.readShort();
+            if (numMaterials > 0) {
+                isMaterial = true;
+            }
+            model_materials = new Vector<>(numMaterials);
+
+            for (i = 0; i < numMaterials; i++) {
+                MS3DMaterial material = new MS3DMaterial();
+                material.name = reader.readString(32);
+                material.ambient[0] = reader.readFloat();
+                material.ambient[1] = reader.readFloat();
+                material.ambient[2] = reader.readFloat();
+                material.ambient[3] = reader.readFloat();
+                material.diffuse[0] = reader.readFloat();
+                material.diffuse[1] = reader.readFloat();
+                material.diffuse[2] = reader.readFloat();
+                material.diffuse[3] = reader.readFloat();
+                material.specular[0] = reader.readFloat();
+                material.specular[1] = reader.readFloat();
+                material.specular[2] = reader.readFloat();
+                material.specular[3] = reader.readFloat();
+                material.emissive[0] = reader.readFloat();
+                material.emissive[1] = reader.readFloat();
+                material.emissive[2] = reader.readFloat();
+                material.emissive[3] = reader.readFloat();
+                material.shininess = reader.readFloat();
+                material.transparency = reader.readFloat();
+                material.mode = reader.readByte();
+                material.texture = reader.readStringFreeSize(Consts.MAX_TEXTURE_FILENAME_SIZE);
+                material.alphamap = reader.readStringFreeSize(Consts.MAX_TEXTURE_FILENAME_SIZE);
+
+                // set alpha
+                material.ambient[3] = material.transparency;
+                material.diffuse[3] = material.transparency;
+                material.specular[3] = material.transparency;
+                material.emissive[3] = material.transparency;
+                model_materials.add(material);
+            }
+
+            //-----------------------------------------
+            //-------------animation
+            //-----------------------------------------
+
+            model_animationFps = reader.readFloat();
+            if (model_animationFps < 1.0f)
+                model_animationFps = 1.0f;
+            model_currentTime = reader.readFloat();
+            model_totalFrames = reader.readInt();
+
+            //-------------------------
+            //------------ joints
+            //-------------------------
+
+            numJoints = reader.readShort();
+            if (numJoints > 0) {
+                isJoint = true;
+            }
+            model_joints = new Vector<>(numJoints);
+
+            parent = new String[numJoints];
+
+            for (i = 0; i < numJoints; i++) {
+                parent[i] = new String();
+            }
+
+            for (i = 0; i < numJoints; i++) {
+                MS3DJoint joint = new MS3DJoint();
+                joint.flags = reader.readByte();
+                joint.name = reader.readStringFreeSize(32);
+                parent[i] = joint.name;
+                joint.parentName = reader.readStringFreeSize(32);
+                joint.rot[0] = reader.readFloat();
+                joint.rot[1] = reader.readFloat();
+                joint.rot[2] = reader.readFloat();
+                joint.pos[0] = reader.readFloat();
+                joint.pos[1] = reader.readFloat();
+                joint.pos[2] = reader.readFloat();
+
+                numKeyFramesRot = reader.readShort();
+                joint.rotationKeys = new Vector<>(numKeyFramesRot);
+
+                numKeyFramesPos = reader.readShort();
+                joint.positionKeys = new Vector<>(numKeyFramesPos);
+
+                // the frame time is in seconds, so multiply it by the animation fps, to get the frames
+                // rotation channel
+                for (int j = 0; j < numKeyFramesRot; j++) {
+                    MS3DKeyFrame keyFrame = new MS3DKeyFrame();
+                    keyFrame.time = reader.readFloat();
+                    keyFrame.key[0] = reader.readFloat();
+                    keyFrame.key[1] = reader.readFloat();
+                    keyFrame.key[2] = reader.readFloat();
+                    keyFrame.time *= model_animationFps;
+                    joint.rotationKeys.add(keyFrame);
+                }
+                // translation channel
+                for (int j = 0; j < numKeyFramesPos; j++) {
+                    MS3DKeyFrame keyFrame = new MS3DKeyFrame();
+                    keyFrame.time = reader.readFloat();
+                    keyFrame.key[0] = reader.readFloat();
+                    keyFrame.key[1] = reader.readFloat();
+                    keyFrame.key[2] = reader.readFloat();
+                    keyFrame.time *= model_animationFps;
+                    joint.positionKeys.add(keyFrame);
+                }
+
+                model_joints.add(joint);
+
+                if (i == 0) {
+                    joint.parentIndex = -1;
+                } else {
+                    for (int j = 0; j < model_joints.size(); j++) {
+                        if (joint.parentName.equalsIgnoreCase(model_joints.get(j).name)) {
+                            joint.parentIndex = j;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (reader.available()) {
+                int subVersion = 0;
+                subVersion = reader.readInt();
+                if (subVersion == 1) {
+                    int numComments = 0;
+                    int commentSize = 0;
+
+                    // group comments
+                    numComments = reader.readInt();
+                    for (i = 0; i < numComments; i++) {
+                        int index;
+                        index = reader.readInt();
+                        String comment = null;
+                        commentSize = reader.readInt();
+                        if (commentSize > 0)
+                            comment = reader.readStringFreeSize(commentSize);
+                        if (index >= 0 && index < (int) model_groups.size())
+                            model_groups.get(index).comment = comment;
+                    }
+
+                    // material comments
+                    numComments = reader.readInt();
+                    for (i = 0; i < numComments; i++) {
+                        int index;
+                        index = reader.readInt();
+                        String comment = null;
+                        commentSize = reader.readInt();
+                        if (commentSize > 0)
+                            comment = reader.readStringFreeSize(commentSize);
+                        if (index >= 0 && index < (int) model_materials.size())
+                            model_materials.get(index).comment = comment;
+                    }
+
+                    // joint comments
+                    numComments = reader.readInt();
+                    for (i = 0; i < numComments; i++) {
+                        int index;
+                        index = reader.readInt();
+                        String comment = null;
+                        commentSize = reader.readInt();
+                        if (commentSize > 0)
+                            comment = reader.readStringFreeSize(commentSize);
+                        if (index >= 0 && index < (int) model_joints.size())
+                            model_joints.get(index).comment = comment;
+                    }
+
+                    // model comments
+                    numComments = reader.readInt();
+                    if (numComments == 1) {
+                        String comment = null;
+                        commentSize = reader.readInt();
+                        if (commentSize > 0)
+                            comment = reader.readStringFreeSize(commentSize);
+                        model_comment = comment;
+                    }
+                } else {
+                    // "Unknown subversion for comments %d\n", subVersion);
+                }
+            }
+
+            if (reader.available()) {
+                int subVersion = 0;
+                subVersion = reader.readInt();
+                if (subVersion == 2) {
+                    for (i = 0; i < numVertices; i++) {
+                        model_vertices.get(i).boneIds[0] = reader.readByte();
+                        model_vertices.get(i).boneIds[1] = reader.readByte();
+                        model_vertices.get(i).boneIds[2] = reader.readByte();
+                        model_vertices.get(i).weights[0] = reader.readByte();
+                        model_vertices.get(i).weights[1] = reader.readByte();
+                        model_vertices.get(i).weights[2] = reader.readByte();
+                        model_vertices.get(i).extra = reader.readInt();
+                    }
+                } else if (subVersion == 1) {
+                    for (i = 0; i < numVertices; i++) {
+                        model_vertices.get(i).boneIds[0] = reader.readByte();
+                        model_vertices.get(i).boneIds[1] = reader.readByte();
+                        model_vertices.get(i).boneIds[2] = reader.readByte();
+                        model_vertices.get(i).weights[0] = reader.readByte();
+                        model_vertices.get(i).weights[1] = reader.readByte();
+                        model_vertices.get(i).weights[2] = reader.readByte();
+                    }
+                } else {
+                    // "Unknown subversion for vertex extra %d\n", subVersion);
+                }
+            }
+
+        // joint extra
+        if (reader.available()) {
+            int subVersion = 0;
+            subVersion = reader.readInt();
+            if (subVersion == 1) {
+                for (i = 0; i < numJoints; i++) {
+                    model_joints.get(i).color[0] = reader.readFloat();
+                    model_joints.get(i).color[1] = reader.readFloat();
+                    model_joints.get(i).color[2] = reader.readFloat();
+                }
+            } else {
+                // "Unknown subversion for joint extra %d\n", subVersion);
+            }
+        }
+
+        // model extra
+        if (reader.available()) {
+            int subVersion = 0;
+            subVersion = reader.readInt();
+            if (subVersion == 1) {
+                model_jointSize = reader.readFloat();
+                model_transparencyMode = reader.readInt();
+                model_alphaRef = reader.readFloat();
+            } else {
+                //"Unknown subversion for model extra %d\n", subVersion);
+            }
+        }
 
         } catch (FileNotFoundException ex) {
 
@@ -287,872 +524,841 @@ public class MS3DModelLoader {
         }
 
 
-//        //----------------------------------
-//        //--------------number of materials
-//        //----------------------------------
-//
-//        pos = startOfMaterials;
-//        fsetpos(fp, & pos);
-//
-//        fread( & numMaterials, sizeof(unsigned short),1, fp);
-//        if (numMaterials > 0) {
-//            isMaterial = true;
-//        }
-//        model_materials.resize(numMaterials);
-//
-//        for (int i = 0; i < numMaterials; i++) {
-//            fread(model_materials[i].name, sizeof( char),32, fp);
-//            fread( & model_materials[i].ambient, sizeof( float),4, fp);
-//            fread( & model_materials[i].diffuse, sizeof( float),4, fp);
-//            fread( & model_materials[i].specular, sizeof( float),4, fp);
-//            fread( & model_materials[i].emissive, sizeof( float),4, fp);
-//            fread( & model_materials[i].shininess, sizeof( float),1, fp);
-//            fread( & model_materials[i].transparency, sizeof( float),1, fp);
-//            fread( & model_materials[i].mode, sizeof(unsigned char),1, fp);
-//            fread(model_materials[i].texture, sizeof( char),MAX_TEXTURE_FILENAME_SIZE, fp);
-//            fread(model_materials[i].alphamap, sizeof( char),MAX_TEXTURE_FILENAME_SIZE, fp);
-//
-//            // set alpha
-//            model_materials[i].ambient[3] = model_materials[i].transparency;
-//            model_materials[i].diffuse[3] = model_materials[i].transparency;
-//            model_materials[i].specular[3] = model_materials[i].transparency;
-//            model_materials[i].emissive[3] = model_materials[i].transparency;
-//        }
-//
-//        int sizeOfMaterial = sizeof(unsigned short)+(numMaterials * ((sizeof( char) *
-//        (33 + (2 * MAX_TEXTURE_FILENAME_SIZE)) )+(sizeof( float) *18)	)	);
-//        startOfAnimation = startOfMaterials + sizeOfMaterial;
-//
-//        //-----------------------------------------
-//        //-------------animation
-//        //-----------------------------------------
-//
-//        pos = startOfAnimation;
-//        fsetpos(fp, & pos);
-//
-//        fread( & model_animationFps, sizeof( float),1, fp);
-//
-//        if (model_animationFps < 1.0f)
-//            model_animationFps = 1.0f;
-//        fread( & model_currentTime, sizeof( float),1, fp);
-//        fread( & model_totalFrames, sizeof( int),1, fp);
-//
-//        //-------------------------
-//        //------------ joints
-//        //-------------------------
-//
-//        fread( & numJoints, sizeof(unsigned short),1, fp);
-//        if (numJoints > 0) {
-//            isJoint = true;
-//        }
-//        model_joints.resize(numJoints);
-//
-//        parent = new MSchar[numJoints];
-//
-//        for (int i = 0; i < numJoints; i++) {
-//            parent[i] = new char[32];
-//        }
-//
-//        for (int i = 0; i < numJoints; i++) {
-//            fread( & model_joints[i].flags, sizeof(unsigned char),1, fp);
-//            fread(model_joints[i].name, sizeof( char),32, fp);
-//            strcpy(parent[i], model_joints[i].name);
-//            fread(model_joints[i].parentName, sizeof( char),32, fp);
-//            fread(model_joints[i].rot, sizeof( float),3, fp);
-//            fread(model_joints[i].pos, sizeof( float),3, fp);
-//
-//            fread( & numKeyFramesRot, sizeof(unsigned short),1, fp);
-//            model_joints[i].rotationKeys.resize(numKeyFramesRot);
-//
-//            fread( & numKeyFramesPos, sizeof(unsigned short),1, fp);
-//            model_joints[i].positionKeys.resize(numKeyFramesPos);
-//
-//            // the frame time is in seconds, so multiply it by the animation fps, to get the frames
-//            // rotation channel
-//            for (int j = 0; j < numKeyFramesRot; j++) {
-//                fread( & model_joints[i].rotationKeys[j].time, sizeof( float),1, fp);
-//                fread( & model_joints[i].rotationKeys[j].key, sizeof( float),3, fp);
-//                model_joints[i].rotationKeys[j].time *= model_animationFps;
-//            }
-//            // translation channel
-//            for (int j = 0; j < numKeyFramesPos; j++) {
-//                fread( & model_joints[i].positionKeys[j].time, sizeof( float),1, fp);
-//                fread( & model_joints[i].positionKeys[j].key, sizeof( float),3, fp);
-//                model_joints[i].positionKeys[j].time *= model_animationFps;
-//            }
-//            if (i == 0) {
-//                model_joints[i].parentIndex = -1;
-//            } else {
-//                for (int j = 0; j < numJoints; j++) {
-//                    if (strcmp(model_joints[j].name, model_joints[i].parentName) == 0) {
-//                        model_joints[i].parentIndex = j;
-//                        break;
-//                    }
-//                }
-//            }
-//
-//        }
-//
-//        long filePos = ftell(fp);
-//        if (filePos < fSize) {
-//            int subVersion = 0;
-//            fread( & subVersion, sizeof( int),1, fp);
-//            if (subVersion == 1) {
-//                int numComments = 0;
-//                size_t commentSize = 0;
-//
-//                // group comments
-//                fread( & numComments, sizeof( int),1, fp);
-//                for (int i = 0; i < numComments; i++) {
-//                    int index;
-//                    fread( & index, sizeof( int),1, fp);
-//                    std::vector < char>comment;
-//                    fread( & commentSize, sizeof(size_t), 1, fp);
-//                    comment.resize(commentSize);
-//                    if (commentSize > 0)
-//                        fread( & comment[0], sizeof( char),commentSize, fp);
-//                    if (index >= 0 && index < (int) model_groups.size())
-//                        model_groups[index].comment = comment;
-//                }
-//
-//                // material comments
-//                fread( & numComments, sizeof( int),1, fp);
-//                for (int i = 0; i < numComments; i++) {
-//                    int index;
-//                    fread( & index, sizeof( int),1, fp);
-//                    std::vector < char>comment;
-//                    fread( & commentSize, sizeof(size_t), 1, fp);
-//                    comment.resize(commentSize);
-//                    if (commentSize > 0)
-//                        fread( & comment[0], sizeof( char),commentSize, fp);
-//                    if (index >= 0 && index < (int) model_materials.size())
-//                        model_materials[index].comment = comment;
-//                }
-//
-//                // joint comments
-//                fread( & numComments, sizeof( int),1, fp);
-//                for (int i = 0; i < numComments; i++) {
-//                    int index;
-//                    fread( & index, sizeof( int),1, fp);
-//                    std::vector < char>comment;
-//                    fread( & commentSize, sizeof(size_t), 1, fp);
-//                    comment.resize(commentSize);
-//                    if (commentSize > 0)
-//                        fread( & comment[0], sizeof( char),commentSize, fp);
-//                    if (index >= 0 && index < (int) model_joints.size())
-//                        model_joints[index].comment = comment;
-//                }
-//
-//                // model comments
-//                fread( & numComments, sizeof( int),1, fp);
-//                if (numComments == 1) {
-//                    std::vector < char>comment;
-//                    fread( & commentSize, sizeof(size_t), 1, fp);
-//                    comment.resize(commentSize);
-//                    if (commentSize > 0)
-//                        fread( & comment[0], sizeof( char),commentSize, fp);
-//                    model_comment = comment;
-//                }
-//            } else {
-//                // "Unknown subversion for comments %d\n", subVersion);
-//            }
-//        }
-//
-//        filePos = ftell(fp);
-//        if (filePos < fSize) {
-//            int subVersion = 0;
-//            fread( & subVersion, sizeof( int),1, fp);
-//            if (subVersion == 2) {
-//                for (int i = 0; i < numVertices; i++) {
-//                    fread( & model_vertices[i].boneIds[0], sizeof( char),3, fp);
-//                    fread( & model_vertices[i].weights[0], sizeof(unsigned char),3, fp);
-//                    fread( & model_vertices[i].extra, sizeof(unsigned int),1, fp);
-//                }
-//            } else if (subVersion == 1) {
-//                for (int i = 0; i < numVertices; i++) {
-//                    fread( & model_vertices[i].boneIds[0], sizeof( char),3, fp);
-//                    fread( & model_vertices[i].weights[0], sizeof(unsigned char),3, fp);
-//                }
-//            } else {
-//                // "Unknown subversion for vertex extra %d\n", subVersion);
-//            }
-//        }
-//
-//        // joint extra
-//        filePos = ftell(fp);
-//        if (filePos < fSize) {
-//            int subVersion = 0;
-//            fread( & subVersion, sizeof( int),1, fp);
-//            if (subVersion == 1) {
-//                for (int i = 0; i < numJoints; i++) {
-//                    fread( & model_joints[i].color, sizeof( float),3, fp);
-//                }
-//            } else {
-//                // "Unknown subversion for joint extra %d\n", subVersion);
-//            }
-//        }
-//
-//        // model extra
-//        filePos = ftell(fp);
-//        if (filePos < fSize) {
-//            int subVersion = 0;
-//            fread( & subVersion, sizeof( int),1, fp);
-//            if (subVersion == 1) {
-//                fread( & model_jointSize, sizeof( float),1, fp);
-//                fread( & model_transparencyMode, sizeof( int),1, fp);
-//                fread( & model_alphaRef, sizeof( float),1, fp);
-//            } else {
-//                //"Unknown subversion for model extra %d\n", subVersion);
-//            }
-//        }
-//
-//        //------------------------------------------------------
-//        //---- get memory
-//        //------------------------------------------------------
-//
-//        if (isJoint) {
-//            joints_array = new float[model_joints.size() * 3];
-//
-//            group_joints_array = new MSfloat[model_totalFrames];
-//            for (int i = 0; i < model_totalFrames; i++) {
-//                group_joints_array[i] = new float[model_joints.size() * 3];
-//            }
-//
-//            color_joints_array = new float[model_joints.size() * 3];
-//            p_color_joints_array = new float[model_joints.size() * 3];
-//
-//            joints_indices = new short[(model_joints.size() - 1) * 2];
-//            p_joints_indices = new short[model_joints.size()];
-//        }
-//
-//        //--------------------------------------------------------
-//
-//        if (isVertex) {
-//            vertices_array = new float[numVertices * 3];
-//
-//            group_vertices_array = new MSfloat[model_totalFrames];
-//            for (int i = 0; i < model_totalFrames; i++) {
-//                group_vertices_array[i] = new float[numVertices * 3];
-//            }
-//
-//            vertices_indices = new MSushort[numGroups];
-//            for (int i = 0; i < numGroups; i++) {
-//                vertices_indices[i] = new short[numGroupTriangles[i] * 3];
-//            }
-//
-//            normals_array = new float[numVertices * 3];
-//            tex_coord_array = new float[numVertices * 2];
-//        }
-//
-//
-//        //--------------------------------------------------------
-//
-//        if (isMaterial) {
-//            materialsIndex = new int[numGroups];
-//        }
-//
-//        //--------------------------------------------------------
-//
-//        if (isJoint) {
-//            SetupJoints();
-//            SetFrame(-1);
-//        }
+        //------------------------------------------------------
+        //---- get memory
+        //------------------------------------------------------
+
+        if (isJoint) {
+            joints_array = new float[model_joints.size() * 3];
+
+            group_joints_array = new float[model_totalFrames][];
+            for (int i = 0; i < model_totalFrames; i++) {
+                group_joints_array[i] = new float[model_joints.size() * 3];
+            }
+
+            color_joints_array = new float[model_joints.size() * 3];
+            p_color_joints_array = new float[model_joints.size() * 3];
+
+            joints_indices = new short[(model_joints.size() - 1) * 2];
+            p_joints_indices = new short[model_joints.size()];
+        }
+
+        //--------------------------------------------------------
+
+        if (isVertex) {
+            vertices_array = new float[numVertices * 3];
+
+            group_vertices_array = new float[model_totalFrames][];
+            for (int i = 0; i < model_totalFrames; i++) {
+                group_vertices_array[i] = new float[numVertices * 3];
+            }
+
+            vertices_indices = new short[numGroups][];
+            for (int i = 0; i < numGroups; i++) {
+                vertices_indices[i] = new short[numGroupTriangles[i] * 3];
+            }
+
+            normals_array = new float[numVertices * 3];
+            tex_coord_array = new float[numVertices * 2];
+        }
+
+
+        //--------------------------------------------------------
+
+        if (isMaterial) {
+            materialsIndex = new int[numGroups];
+        }
+
+        //--------------------------------------------------------
+
+        if (isJoint) {
+            SetupJoints();
+            SetFrame(-1);
+        }
 
         return true;
     }
 
-//    void SetupJoints() {
-//        for (int i = 0; i < model_joints.size(); i++) {
-//            ms3d_joint * joint = &model_joints[i];
-//            AngleMatrix(joint -> rot, joint -> matLocalSkeleton);
-//            joint -> matLocalSkeleton[0][3] = joint -> pos[0];
-//            joint -> matLocalSkeleton[1][3] = joint -> pos[1];
-//            joint -> matLocalSkeleton[2][3] = joint -> pos[2];
-//
-//            if (joint -> parentIndex == -1 || joint -> parentIndex < 0) {
-//                memcpy(joint -> matGlobalSkeleton, joint -> matLocalSkeleton, sizeof(joint -> matGlobalSkeleton));
-//            } else {
-//                ms3d_joint * parentJoint = &model_joints[joint -> parentIndex];
-//                R_ConcatTransforms(parentJoint -> matGlobalSkeleton, joint -> matLocalSkeleton, joint -> matGlobalSkeleton);
-//            }
-//
-//            SetupTangents();
-//        }
-//    }
-//
-//    void SetupTangents() {
-//        for (int j = 0; j < model_joints.size(); j++) {
-//            ms3d_joint * joint = &model_joints[j];
-//            int numPositionKeys = (int) joint -> positionKeys.size();
-//            joint -> tangents.resize(numPositionKeys);
-//
-//            // clear all tangents (zero derivatives)
-//            for (int k = 0; k < numPositionKeys; k++) {
-//                joint -> tangents[k].tangentIn[0] = 0.0f;
-//                joint -> tangents[k].tangentIn[1] = 0.0f;
-//                joint -> tangents[k].tangentIn[2] = 0.0f;
-//                joint -> tangents[k].tangentOut[0] = 0.0f;
-//                joint -> tangents[k].tangentOut[1] = 0.0f;
-//                joint -> tangents[k].tangentOut[2] = 0.0f;
-//            }
-//
-//            // if there are more than 2 keys, we can calculate tangents, otherwise we use zero derivatives
-//            if (numPositionKeys > 2) {
-//                for (int k = 0; k < numPositionKeys; k++) {
-//                    // make the curve tangents looped
-//                    int k0 = k - 1;
-//                    if (k0 < 0)
-//                        k0 = numPositionKeys - 1;
-//                    int k1 = k;
-//                    int k2 = k + 1;
-//                    if (k2 >= numPositionKeys)
-//
-//                        k2 = 0;
-//                    // calculate the tangent, which is the vector from key[k - 1] to key[k + 1]
-//                    float tangent[ 3];
-//                    tangent[0] = (joint -> positionKeys[k2].key[0] - joint -> positionKeys[k0].key[0]);
-//                    tangent[1] = (joint -> positionKeys[k2].key[1] - joint -> positionKeys[k0].key[1]);
-//                    tangent[2] = (joint -> positionKeys[k2].key[2] - joint -> positionKeys[k0].key[2]);
-//
-//                    // weight the incoming and outgoing tangent by their time to avoid changes in speed, if the keys are not within the same interval
-//                    float dt1 = joint -> positionKeys[k1].time - joint -> positionKeys[k0].time;
-//                    float dt2 = joint -> positionKeys[k2].time - joint -> positionKeys[k1].time;
-//                    float dt = dt1 + dt2;
-//                    joint -> tangents[k1].tangentIn[0] = tangent[0] * dt1 / dt;
-//                    joint -> tangents[k1].tangentIn[1] = tangent[1] * dt1 / dt;
-//                    joint -> tangents[k1].tangentIn[2] = tangent[2] * dt1 / dt;
-//
-//                    joint -> tangents[k1].tangentOut[0] = tangent[0] * dt2 / dt;
-//                    joint -> tangents[k1].tangentOut[1] = tangent[1] * dt2 / dt;
-//                    joint -> tangents[k1].tangentOut[2] = tangent[2] * dt2 / dt;
-//                }
-//            }
-//        }
-//    }
-//
-//    void SetFrame(float frame) {
-//        if (frame < 0.0f) {
-//            for (int i = 0; i < model_joints.size(); i++) {
-//                ms3d_joint * joint = &model_joints[i];
-//                memcpy(joint -> matLocal, joint -> matLocalSkeleton, sizeof(joint -> matLocal));
-//                memcpy(joint -> matGlobal, joint -> matGlobalSkeleton, sizeof(joint -> matGlobal));
-//            }
-//        } else {
-//            for (int i = 0; i < model_joints.size(); i++) {
+    void arraycopy(float[][] dest, float[][] src, int level1, int level2) {
+        for (int i = 0; i < level1; i++) {
+            for (int j = 0; j < level2; j++) {
+                dest[i][j] = src[i][j];
+            }
+        }
+    }
+
+    void SetupJoints() {
+        for (int i = 0; i < model_joints.size(); i++) {
+            MS3DJoint joint = model_joints.get(i);
+            AngleMatrix(joint.rot, joint.matLocalSkeleton);
+            joint.matLocalSkeleton[0][3] = joint.pos[0];
+            joint.matLocalSkeleton[1][3] = joint.pos[1];
+            joint.matLocalSkeleton[2][3] = joint.pos[2];
+
+            if (joint.parentIndex == -1 || joint.parentIndex < 0) {
+                arraycopy(joint.matGlobalSkeleton, joint.matLocalSkeleton, 3, 4);
+//                System.arraycopy(joint.matGlobalSkeleton, 0, joint.matLocalSkeleton, 0, 12);
+            } else {
+                MS3DJoint parentJoint = model_joints.get(joint.parentIndex);
+                R_ConcatTransforms(parentJoint.matGlobalSkeleton, joint.matLocalSkeleton, joint.matGlobalSkeleton);
+            }
+
+            SetupTangents();
+        }
+    }
+//                              [3][4]  ,       [3][4],             [3][4]
+    void R_ConcatTransforms (float[][] in1, float[][] in2, float[][] out)
+    {
+        out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
+                in1[0][2] * in2[2][0];
+        out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] +
+                in1[0][2] * in2[2][1];
+        out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] +
+                in1[0][2] * in2[2][2];
+        out[0][3] = in1[0][0] * in2[0][3] + in1[0][1] * in2[1][3] +
+                in1[0][2] * in2[2][3] + in1[0][3];
+        out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] +
+                in1[1][2] * in2[2][0];
+        out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] +
+                in1[1][2] * in2[2][1];
+        out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] +
+                in1[1][2] * in2[2][2];
+        out[1][3] = in1[1][0] * in2[0][3] + in1[1][1] * in2[1][3] +
+                in1[1][2] * in2[2][3] + in1[1][3];
+        out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] +
+                in1[2][2] * in2[2][0];
+        out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] +
+                in1[2][2] * in2[2][1];
+        out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
+                in1[2][2] * in2[2][2];
+        out[2][3] = in1[2][0] * in2[0][3] + in1[2][1] * in2[1][3] +
+                in1[2][2] * in2[2][3] + in1[2][3];
+    }
+
+    void AngleMatrix (float[] angles, float[][] matrix)
+    {
+        double angle;
+        double sr, sp, sy, cr, cp, cy;
+
+        angle = angles[2];
+        sy = Math.sin(angle);
+        cy = Math.cos(angle);
+        angle = angles[1];
+        sp = Math.sin(angle);
+        cp = Math.cos(angle);
+        angle = angles[0];
+        sr = Math.sin(angle);
+        cr = Math.cos(angle);
+
+        // matrix = (Z * Y) * X
+        matrix[0][0] = (float) (cp*cy);
+        matrix[1][0] = (float) (cp*sy);
+        matrix[2][0] = (float) -sp;
+        matrix[0][1] = (float) (sr*sp*cy+cr*-sy);
+        matrix[1][1] = (float) (sr*sp*sy+cr*cy);
+        matrix[2][1] = (float) (sr*cp);
+        matrix[0][2] = (float) (cr*sp*cy+-sr*-sy);
+        matrix[1][2] = (float) (cr*sp*sy+-sr*cy);
+        matrix[2][2] = (float) (cr*cp);
+        matrix[0][3] = 0.0f;
+        matrix[1][3] = 0.0f;
+        matrix[2][3] = 0.0f;
+    }
+
+    void SetupTangents() {
+        for (int j = 0; j < model_joints.size(); j++) {
+            MS3DJoint joint = model_joints.get(j);
+            int numPositionKeys = (int) joint.positionKeys.size();
+            joint.tangents = new Vector<>(numPositionKeys);//resize(numPositionKeys);
+
+            // clear all tangents (zero derivatives)
+            for (int k = 0; k < numPositionKeys; k++) {
+                MS3DTangent tangent = new MS3DTangent();
+                tangent.tangentIn[0] = 0.0f;
+                tangent.tangentIn[1] = 0.0f;
+                tangent.tangentIn[2] = 0.0f;
+                tangent.tangentOut[0] = 0.0f;
+                tangent.tangentOut[1] = 0.0f;
+                tangent.tangentOut[2] = 0.0f;
+                joint.tangents.add(tangent);
+            }
+
+            // if there are more than 2 keys, we can calculate tangents, otherwise we use zero derivatives
+            if (numPositionKeys > 2) {
+                for (int k = 0; k < numPositionKeys; k++) {
+                    // make the curve tangents looped
+                    int k0 = k - 1;
+                    if (k0 < 0)
+                        k0 = numPositionKeys - 1;
+                    int k1 = k;
+                    int k2 = k + 1;
+                    if (k2 >= numPositionKeys)
+
+                        k2 = 0;
+                    // calculate the tangent, which is the vector from key[k - 1] to key[k + 1]
+                    float[] tangent = new float[3];
+                    tangent[0] = (joint.positionKeys.get(k2).key[0] - joint.positionKeys.get(k0).key[0]);
+                    tangent[1] = (joint.positionKeys.get(k2).key[1] - joint.positionKeys.get(k0).key[1]);
+                    tangent[2] = (joint.positionKeys.get(k2).key[2] - joint.positionKeys.get(k0).key[2]);
+
+                    // weight the incoming and outgoing tangent by their time to avoid changes in speed, if the keys are not within the same interval
+                    float dt1 = joint.positionKeys.get(k1).time - joint.positionKeys.get(k0).time;
+                    float dt2 = joint.positionKeys.get(k2).time - joint.positionKeys.get(k1).time;
+                    float dt = dt1 + dt2;
+                    joint.tangents.get(k1).tangentIn[0] = tangent[0] * dt1 / dt;
+                    joint.tangents.get(k1).tangentIn[1] = tangent[1] * dt1 / dt;
+                    joint.tangents.get(k1).tangentIn[2] = tangent[2] * dt1 / dt;
+
+                    joint.tangents.get(k1).tangentOut[0] = tangent[0] * dt2 / dt;
+                    joint.tangents.get(k1).tangentOut[1] = tangent[1] * dt2 / dt;
+                    joint.tangents.get(k1).tangentOut[2] = tangent[2] * dt2 / dt;
+                }
+            }
+        }
+    }
+
+    void SetFrame(float frame) {
+        if (frame < 0.0f) {
+            for (int i = 0; i < model_joints.size(); i++) {
+                MS3DJoint joint = model_joints.get(i);
+                arraycopy(joint.matLocal, joint.matLocalSkeleton, 3, 4);
+//                System.arraycopy(joint.matLocal, 0, joint.matLocalSkeleton, 0, 12);
+                arraycopy(joint.matGlobal, joint.matGlobalSkeleton, 3, 4);
+//                System.arraycopy(joint.matGlobal, 0, joint.matGlobalSkeleton, 0, 12);
+            }
+        } else {
+            for (int i = 0; i < model_joints.size(); i++) {
 //                EvaluateJoint(i, frame);
-//            }
-//        }
-//
-//        model_currentTime = frame;
-//    }
-//
-//    void SetAnimationFPS(int fps) {
-//        model_animationFps = fps;
-//    }
-//
-//    void EvaluateJoint(int index, float frame) {
-//        ms3d_joint * joint = &model_joints[index];
-//
-//        //
-//        // calculate joint animation matrix, this matrix will animate matLocalSkeleton
-//        //
-//        vec3_t pos = {0.0f, 0.0f, 0.0f};
-//        int numPositionKeys = (int) joint -> positionKeys.size();
-//        if (numPositionKeys > 0) {
-//            int i1 = -1;
-//            int i2 = -1;
-//
-//            // find the two keys, where "frame" is in between for the position channel
-//            for (int i = 0; i < (numPositionKeys - 1); i++) {
-//                if (frame >= joint -> positionKeys[i].time && frame < joint -> positionKeys[i + 1].time) {
-//                    i1 = i;
-//                    i2 = i + 1;
-//                    break;
-//                }
-//            }
-//
-//            // if there are no such keys
-//            if (i1 == -1 || i2 == -1) {
-//                // either take the first
-//                if (frame < joint -> positionKeys[0].time) {
-//                    pos[0] = joint -> positionKeys[0].key[0];
-//                    pos[1] = joint -> positionKeys[0].key[1];
-//                    pos[2] = joint -> positionKeys[0].key[2];
-//                }
-//
-//                // or the last key
-//                else if (frame >= joint -> positionKeys[numPositionKeys - 1].time) {
-//                    pos[0] = joint -> positionKeys[numPositionKeys - 1].key[0];
-//                    pos[1] = joint -> positionKeys[numPositionKeys - 1].key[1];
-//                    pos[2] = joint -> positionKeys[numPositionKeys - 1].key[2];
-//                }
-//            }
-//
-//            // there are such keys, so interpolate using hermite interpolation
-//            else {
-//                ms3d_keyframe * p0 = &joint -> positionKeys[i1];
-//                ms3d_keyframe * p1 = &joint -> positionKeys[i2];
-//                ms3d_tangent * m0 = &joint -> tangents[i1];
-//                ms3d_tangent * m1 = &joint -> tangents[i2];
-//
-//                // normalize the time between the keys into [0..1]
-//                float t = (frame - joint -> positionKeys[i1].time) / (joint -> positionKeys[i2].time - joint -> positionKeys[i1].time);
-//                float t2 = t * t;
-//                float t3 = t2 * t;
-//
-//                // calculate hermite basis
-//                float h1 = 2.0f * t3 - 3.0f * t2 + 1.0f;
-//                float h2 = -2.0f * t3 + 3.0f * t2;
-//                float h3 = t3 - 2.0f * t2 + t;
-//                float h4 = t3 - t2;
-//
-//                // do hermite interpolation
-//                pos[0] = h1 * p0 -> key[0] + h3 * m0 -> tangentOut[0] + h2 * p1 -> key[0] + h4 * m1 -> tangentIn[0];
-//                pos[1] = h1 * p0 -> key[1] + h3 * m0 -> tangentOut[1] + h2 * p1 -> key[1] + h4 * m1 -> tangentIn[1];
-//                pos[2] = h1 * p0 -> key[2] + h3 * m0 -> tangentOut[2] + h2 * p1 -> key[2] + h4 * m1 -> tangentIn[2];
-//            }
-//        }
-//
-//        vec4_t quat = {0.0f, 0.0f, 0.0f, 1.0f};
-//        int numRotationKeys = (int) joint -> rotationKeys.size();
-//        if (numRotationKeys > 0) {
-//            int i1 = -1;
-//            int i2 = -1;
-//
-//            // find the two keys, where "frame" is in between for the rotation channel
-//            for (int i = 0; i < (numRotationKeys - 1); i++) {
-//                if (frame >= joint -> rotationKeys[i].time && frame < joint -> rotationKeys[i + 1].time) {
-//                    i1 = i;
-//                    i2 = i + 1;
-//                    break;
-//                }
-//            }
-//
-//            // if there are no such keys
-//            if (i1 == -1 || i2 == -1) {
-//                // either take the first key
-//                if (frame < joint -> rotationKeys[0].time) {
-//                    AngleQuaternion(joint -> rotationKeys[0].key, quat);
-//                }
-//
-//                // or the last key
-//                else if (frame >= joint -> rotationKeys[numRotationKeys - 1].time) {
-//                    AngleQuaternion(joint -> rotationKeys[numRotationKeys - 1].key, quat);
-//                }
-//            }
-//
-//            // there are such keys, so do the quaternion slerp interpolation
-//            else {
-//                float t = (frame - joint -> rotationKeys[i1].time) / (joint -> rotationKeys[i2].time - joint -> rotationKeys[i1].time);
-//                vec4_t q1;
-//                AngleQuaternion(joint -> rotationKeys[i1].key, q1);
-//                vec4_t q2;
-//                AngleQuaternion(joint -> rotationKeys[i2].key, q2);
-//                QuaternionSlerp(q1, q2, t, quat);
-//            }
-//        }
-//
-//        // make a matrix from pos/quat
-//        float matAnimate[ 3][4];
-//        QuaternionMatrix(quat, matAnimate);
-//        matAnimate[0][3] = pos[0];
-//        matAnimate[1][3] = pos[1];
-//        matAnimate[2][3] = pos[2];
-//
-//        // animate the local joint matrix using: matLocal = matLocalSkeleton * matAnimate
-//        R_ConcatTransforms(joint -> matLocalSkeleton, matAnimate, joint -> matLocal);
-//
-//        // build up the hierarchy if joints
-//        // matGlobal = matGlobal(parent) * matLocal
-//        if (joint -> parentIndex == -1 || joint -> parentIndex < 0) {
-//            memcpy(joint -> matGlobal, joint -> matLocal, sizeof(joint -> matGlobal));
-//        } else {
-//            ms3d_joint * parentJoint = &model_joints[joint -> parentIndex];
-//            R_ConcatTransforms(parentJoint -> matGlobal, joint -> matLocal, joint -> matGlobal);
-//        }
-//    }
-//
-//    vec3 TransformJoint( const float v[3], const float m[3][4]) {
-//        vec3 out;
-//
-//        // M00 M01 M02 M03				V0
-//        //
-//        // M10 M11 M12 M13				V1
-//        //						*
-//        // M20 M21 M22 M23				V2
-//
-//        out.x = m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3];
-//        out.y = m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3];
-//        out.z = m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3];
-//
-//        return out;
-//    }
-//
-//    vec3 TransformVertex(const ms3d_vertex *vertex) const
-//
-//    {
-//        vec3_t out;
-//        int jointIndices[ 4],jointWeights[4];
-//        FillJointIndicesAndWeights(vertex, jointIndices, jointWeights);
-//
-//        if (jointIndices[0] < 0 || jointIndices[0] >= (int) model_joints.size() || model_currentTime < 0.0f) {
-//            out[0] = vertex -> vertex[0];
-//            out[1] = vertex -> vertex[1];
-//            out[2] = vertex -> vertex[2];
-//        } else {
-//            // count valid weights
-//            int numWeights = 0;
-//            for (int i = 0; i < 4; i++) {
-//                if (jointWeights[i] > 0 && jointIndices[i] >= 0 && jointIndices[i] < (int) model_joints.size())
-//                    ++numWeights;
-//                else
-//                    break;
-//            }
-//
-//            // init
-//            out[0] = 0.0f;
-//            out[1] = 0.0f;
-//            out[2] = 0.0f;
-//
-//            float weights[ 4] ={
-//                (float) jointWeights[0] / 100.0f, (float) jointWeights[1] / 100.0f, (float) jointWeights[2] / 100.0f, (float) jointWeights[3] / 100.0f
-//            } ;
-//            if (numWeights == 0) {
-//                numWeights = 1;
-//                weights[0] = 1.0f;
-//            }
-//            // add weighted vertices
-//            for (int i = 0; i < numWeights; i++) {
-//			const ms3d_joint * joint = &model_joints[jointIndices[i]];
-//                vec3_t tmp, vert;
-//                VectorITransform(vertex -> vertex, joint -> matGlobalSkeleton, tmp);
-//                VectorTransform(tmp, joint -> matGlobal, vert);
-//
-//                out[0] += vert[0] * weights[i];
-//                out[1] += vert[1] * weights[i];
-//                out[2] += vert[2] * weights[i];
-//            }
-//        }
-//        vec3 v = {out[0], out[1], out[2]};
-//        return v;
-//    }
-//
-//    void FillJointIndicesAndWeights(const ms3d_vertex *vertex, int jointIndices[4], int jointWeights[4]) const
-//
-//    {
-//        jointIndices[0] = vertex -> boneId;
-//        jointIndices[1] = vertex -> boneIds[0];
-//        jointIndices[2] = vertex -> boneIds[1];
-//        jointIndices[3] = vertex -> boneIds[2];
-//        jointWeights[0] = 100;
-//        jointWeights[1] = 0;
-//        jointWeights[2] = 0;
-//        jointWeights[3] = 0;
-//        if (vertex -> weights[0] != 0 || vertex -> weights[1] != 0 || vertex -> weights[2] != 0) {
-//            jointWeights[0] = vertex -> weights[0];
-//            jointWeights[1] = vertex -> weights[1];
-//            jointWeights[2] = vertex -> weights[2];
-//            jointWeights[3] = 100 - (vertex -> weights[0] + vertex -> weights[1] + vertex -> weights[2]);
-//        }
-//    }
-//
-//    void LoadModel() {
-//        //--------------------------------------------------------------
-//        //----------------- Load Vertices
-//        //--------------------------------------------------------------
-//
-//        SetupVertexArray();
-//
-//        //--------------------------------------------------------------
-//        //----------------- Load Index Groups
-//        //--------------------------------------------------------------
-//
-//        int *gIdx = new int[numGroups];
-//        for (int j = 0; j < numGroups; j++) {
-//            gIdx[j] = 0;
-//        }
-//        int gIndex = 0;
-//
-//        for (int i = 0; i < numTriangles; i++) {
-//            gIndex = model_triangles[i].groupIndex;
-//            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles[i].vertexIndices[0];
-//            gIdx[gIndex] = gIdx[gIndex] + 1;
-//            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles[i].vertexIndices[1];
-//            gIdx[gIndex] = gIdx[gIndex] + 1;
-//            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles[i].vertexIndices[2];
-//            gIdx[gIndex] = gIdx[gIndex] + 1;
-//
-//            //--------------------------------------------------------------
-//            //----------------- Load Vertices Normals
-//            //--------------------------------------------------------------
-//
-//            normals_array[model_triangles[i].vertexIndices[0]] = model_triangles[i].vertexNormals[0][0];
-//            normals_array[model_triangles[i].vertexIndices[0]] = model_triangles[i].vertexNormals[0][1];
-//            normals_array[model_triangles[i].vertexIndices[0]] = model_triangles[i].vertexNormals[0][2];
-//
-//            normals_array[model_triangles[i].vertexIndices[1]] = model_triangles[i].vertexNormals[1][0];
-//            normals_array[model_triangles[i].vertexIndices[1]] = model_triangles[i].vertexNormals[1][1];
-//            normals_array[model_triangles[i].vertexIndices[1]] = model_triangles[i].vertexNormals[1][2];
-//
-//            normals_array[model_triangles[i].vertexIndices[2]] = model_triangles[i].vertexNormals[2][0];
-//            normals_array[model_triangles[i].vertexIndices[2]] = model_triangles[i].vertexNormals[2][1];
-//            normals_array[model_triangles[i].vertexIndices[2]] = model_triangles[i].vertexNormals[2][2];
-//
-//            //--------------------------------------------------------------
-//            //----------------- Load Vertices Coordinates ( s for first_axis)
-//            //--------------------------------------------------------------
-//
-//            tex_coord_array[model_triangles[i].vertexIndices[0] * 2] = model_triangles[i].s[0];
-//            tex_coord_array[model_triangles[i].vertexIndices[1] * 2] = model_triangles[i].s[1];
-//            tex_coord_array[model_triangles[i].vertexIndices[2] * 2] = model_triangles[i].s[2];
-//
-//            //--------------------------------------------------------------
-//            //----------------- Load Vertices Coordinates ( t for second_axis)
-//            //--------------------------------------------------------------
-//
-//            tex_coord_array[model_triangles[i].vertexIndices[0] * 2 + 1] = model_triangles[i].t[0];
-//            tex_coord_array[model_triangles[i].vertexIndices[1] * 2 + 1] = model_triangles[i].t[1];
-//            tex_coord_array[model_triangles[i].vertexIndices[2] * 2 + 1] = model_triangles[i].t[2];
-//        }
-//
-//        //--------------------------------------------------------------
-//        //----------------- Load Textures For Materials And Groups
-//        //--------------------------------------------------------------
-//
-//        SetupTextureArray();
-//
-//        if (isJoint) {
-//            SetupJointsArray();
-//        }
-//
-//        model_vertices.clear();
-//        model_triangles.clear();
-//        model_groups.clear();
-//        model_joints.clear();
-//
-//    }
-//
-//    void SetupTextureArray() {
-//        for (int i = 0; i < numMaterials; i++) {
-//            LoadTextureFromBitmapFileForMS3D(model_materials[i].texture, model_materials[i].id);//materialsArray[i]);
-//            for (int j = 0; j < numGroups; j++) {
-//                if (model_groups[j].materialIndex == i) {
-//                    materialsIndex[j] = i;
-//                }
-//
-//            }
-//        }
-//    }
-//
-//    void CMS3DModelLoader::
-//
-//    SetupVertexArray() {
-//        for (int i = 0; i < numVertices; i++) {
-//            //3 element of vertex for(x,y,z)
-//            vertices_array[i * 3] = model_vertices[i].vertex[0];//x
-//            vertices_array[i * 3 + 1] = model_vertices[i].vertex[1];//y
-//            vertices_array[i * 3 + 2] = model_vertices[i].vertex[2];//z
-//        }
-//
-//        for (int i = 0; i < model_totalFrames; i++) {
-//            SetFrame(i);
-//
-//            for (int j = 0; j < numVertices; j++) {
-//                ms3d_vertex * vertex =	&model_vertices[j];
-//                vec3 v = TransformVertex(vertex);
-//                //3 element of vertex for(x,y,z)
-//                group_vertices_array[i][j * 3] = v.x;//model_vertices[i].vertex[0];//x
-//                group_vertices_array[i][j * 3 + 1] = v.y;//model_vertices[i].vertex[1];//y
-//                group_vertices_array[i][j * 3 + 2] = v.z;//model_vertices[i].vertex[2];//z
-//            }
-//        }
-//    }
-//
-//    void SetupJointsArray() {
-//        SetFrame(-1);
-//        for (int i = 0; i < model_joints.size(); i++) {
-//            vec3 p;
-//
-//            int parentIdx = model_joints[i].parentIndex;
-//            if (parentIdx > -1) {
-//                p = TransformJoint(model_joints[i].pos, model_joints[parentIdx].matGlobal);
-//            } else {
-//                p.x = model_joints[i].pos[0];
-//                p.y = model_joints[i].pos[1];
-//                p.z = model_joints[i].pos[2];
-//            }
-//
-//            joints_array[i * 3] = p.x;
-//            joints_array[i * 3 + 1] = p.y;
-//            joints_array[i * 3 + 2] = p.z;
-//
-//            color_joints_array[i * 3] = 0.9;
-//            color_joints_array[i * 3 + 1] = 0.8;
-//            color_joints_array[i * 3 + 2] = 0;
-//
-//            p_color_joints_array[i * 3] = 1;
-//            p_color_joints_array[i * 3 + 1] = 0;
-//            p_color_joints_array[i * 3 + 2] = 0;
-//
-//        }
-//
-//        for (int i = 0; i < model_totalFrames; i++) {
-//            SetFrame(i);
-//
-//            for (int j = 0; j < numJoints; j++) {
-//                vec3 p;
-//
-//                int parentIdx = model_joints[j].parentIndex;
-//                if (parentIdx > -1) {
-//                    p = TransformJoint(model_joints[j].pos, model_joints[parentIdx].matGlobal);
-//                } else {
-//                    p.x = model_joints[j].pos[0];
-//                    p.y = model_joints[j].pos[1];
-//                    p.z = model_joints[j].pos[2];
-//                }
-//
-//                group_joints_array[i][j * 3] = p.x;
-//                group_joints_array[i][j * 3 + 1] = p.y;
-//                group_joints_array[i][j * 3 + 2] = p.z;
-//            }
-//        }
-//
-//        for (int i = 0; i < (model_joints.size() - 1); i++) {
-//            joints_indices[i * 2] = i + 1;
-//            joints_indices[i * 2 + 1] = model_joints[i + 1].parentIndex;
-//
-//            p_joints_indices[i] = i;
-//        }
-//        p_joints_indices[model_joints.size() - 1] = model_joints.size() - 1;
-//    }
-//
-//    int GetNumberOfVertex() {
-//        return numVertices;
-//    }
-//
-//    int GetNumberOFGroups() {
-//        return numGroups;
-//    }
-//
-//    int GetNumberOfMaterials() {
-//        return numMaterials;
-//    }
-//
-//    int GetNumberOfIndexInGroup(int index) {
-//        return numGroupIndices[index];
-//    }
-//
-//    int GetNumberOfJoints() {
-//        return numJoints;
-//    }
-//
-//    int GetNumberOfTotalFrame() {
-//        return model_totalFrames;
-//    }
-//
-//    float GetAnimationFPS() {
-//        return model_animationFps;
-//    }
-//
-//    int GetTexturesArray(int index) {
-//        return 0;
-//    }
-//
-//    float*
-//
-//    GetVerticesArray() {
-//        return vertices_array;
-//    }
-//
-//    float*
-//
-//    GetGroupVerticesArray(int index) {
-//        return group_vertices_array[index];
-//    }
-//
-//    float*
-//
-//    GetTexCoordArray() {
-//        return tex_coord_array;
-//    }
-//
-//    short*
-//
-//    GetVerticesIndices(int index) {
-//        return vertices_indices[index];
-//    }
-//
-//    MS3DMaterial*
-//
-//    GetMaterial(int index) {
-//        return &model_materials[index];
-//    }
-//
-//    int GetTransparencyMode() {
-//        return model_transparencyMode;
-//    }
-//
-//    float GetAlphaRef() {
-//        return model_alphaRef;
-//    }
-//
-//    char GetMaterialForGroup(int index) {
-//        return materialsIndex[index];
-//    }
-//
-//    float*
-//
-//    GetJointsArray() {
-//        return joints_array;
-//    }
-//
-//    float*
-//
-//    GetGroupJointsArray(int index) {
-//        return group_joints_array[index];
-//    }
-//
-//    float*
-//
-//    GetColorJointsArray() {
-//        return color_joints_array;
-//    }
-//
-//    float*
-//
-//    GetPColorJointsArray() {
-//        return p_color_joints_array;
-//    }
-//
-//    short*
-//
-//    GetJointsIndices() {
-//        return joints_indices;
-//    }
-//
-//    short*
-//
-//    GetPJointsIndices() {
-//        return p_joints_indices;
-//    }
-//
-//    boolean GetIsVertex() {
-//        return isVertex;
-//    }
-//
-//    boolean GetIsTriangle() {
-//        return isTriangle;
-//    }
-//
-//    boolean GetIsGroup() {
-//        return isGroup;
-//    }
-//
-//    boolean GetIsMaterial() {
-//        return isMaterial;
-//    }
-//
-//    boolean GetIsJoint() {
-//        return isJoint;
-//    }
+            }
+        }
+
+        model_currentTime = frame;
+    }
+
+    void SetAnimationFPS(int fps) {
+        model_animationFps = fps;
+    }
+
+    void EvaluateJoint(int index, float frame) {
+        MS3DJoint joint = model_joints.get(index);
+
+        //
+        // calculate joint animation matrix, this matrix will animate matLocalSkeleton
+        //
+        float[] pos = {0.0f, 0.0f, 0.0f};
+        int numPositionKeys = (int) joint.positionKeys.size();
+        if (numPositionKeys > 0) {
+            int i1 = -1;
+            int i2 = -1;
+
+            // find the two keys, where "frame" is in between for the position channel
+            for (int i = 0; i < (numPositionKeys - 1); i++) {
+                if (frame >= joint.positionKeys.get(i).time && frame < joint.positionKeys.get(i + 1).time) {
+                    i1 = i;
+                    i2 = i + 1;
+                    break;
+                }
+            }
+
+            // if there are no such keys
+            if (i1 == -1 || i2 == -1) {
+                // either take the first
+                if (frame < joint.positionKeys.get(0).time) {
+                    pos[0] = joint.positionKeys.get(0).key[0];
+                    pos[1] = joint.positionKeys.get(0).key[1];
+                    pos[2] = joint.positionKeys.get(0).key[2];
+                }
+
+                // or the last key
+                else if (frame >= joint.positionKeys.get(numPositionKeys - 1).time) {
+                    pos[0] = joint.positionKeys.get(numPositionKeys - 1).key[0];
+                    pos[1] = joint.positionKeys.get(numPositionKeys - 1).key[1];
+                    pos[2] = joint.positionKeys.get(numPositionKeys - 1).key[2];
+                }
+            }
+
+            // there are such keys, so interpolate using hermite interpolation
+            else {
+                MS3DKeyFrame p0 = joint.positionKeys.get(i1);
+                MS3DKeyFrame p1 = joint.positionKeys.get(i2);
+                MS3DTangent m0 = joint.tangents.get(i1);
+                MS3DTangent m1 = joint.tangents.get(i2);
+
+                // normalize the time between the keys into [0..1]
+                float t = (frame - joint.positionKeys.get(i1).time) / (joint.positionKeys.get(i2).time - joint.positionKeys.get(i1).time);
+                float t2 = t * t;
+                float t3 = t2 * t;
+
+                // calculate hermite basis
+                float h1 = 2.0f * t3 - 3.0f * t2 + 1.0f;
+                float h2 = -2.0f * t3 + 3.0f * t2;
+                float h3 = t3 - 2.0f * t2 + t;
+                float h4 = t3 - t2;
+
+                // do hermite interpolation
+                pos[0] = h1 * p0.key[0] + h3 * m0.tangentOut[0] + h2 * p1.key[0] + h4 * m1.tangentIn[0];
+                pos[1] = h1 * p0.key[1] + h3 * m0.tangentOut[1] + h2 * p1.key[1] + h4 * m1.tangentIn[1];
+                pos[2] = h1 * p0.key[2] + h3 * m0.tangentOut[2] + h2 * p1.key[2] + h4 * m1.tangentIn[2];
+            }
+        }
+
+        float[] quat = {0.0f, 0.0f, 0.0f, 1.0f};
+        int numRotationKeys = (int) joint.rotationKeys.size();
+        if (numRotationKeys > 0) {
+            int i1 = -1;
+            int i2 = -1;
+
+            // find the two keys, where "frame" is in between for the rotation channel
+            for (int i = 0; i < (numRotationKeys - 1); i++) {
+                if (frame >= joint.rotationKeys.get(i).time && frame < joint.rotationKeys.get(i + 1).time) {
+                    i1 = i;
+                    i2 = i + 1;
+                    break;
+                }
+            }
+
+            // if there are no such keys
+            if (i1 == -1 || i2 == -1) {
+                // either take the first key
+                if (frame < joint.rotationKeys.get(0).time) {
+                    AngleQuaternion(joint.rotationKeys.get(0).key, quat);
+                }
+
+                // or the last key
+                else if (frame >= joint.rotationKeys.get(numRotationKeys - 1).time) {
+                    AngleQuaternion(joint.rotationKeys.get(numRotationKeys - 1).key, quat);
+                }
+            }
+
+            // there are such keys, so do the quaternion slerp interpolation
+            else {
+                float t = (frame - joint.rotationKeys.get(i1).time) / (joint.rotationKeys.get(i2).time - joint.rotationKeys.get(i1).time);
+//                [4]
+                float[] q1 = new float[4];
+                AngleQuaternion(joint.rotationKeys.get(i1).key, q1);
+                float[] q2 = new float[4];
+                AngleQuaternion(joint.rotationKeys.get(i2).key, q2);
+                QuaternionSlerp(q1, q2, t, quat);
+            }
+        }
+
+        // make a matrix from pos/quat
+        float[][] matAnimate = new float[3][4];
+        QuaternionMatrix(quat, matAnimate);
+        matAnimate[0][3] = pos[0];
+        matAnimate[1][3] = pos[1];
+        matAnimate[2][3] = pos[2];
+
+        // animate the local joint matrix using: matLocal = matLocalSkeleton * matAnimate
+        R_ConcatTransforms(joint.matLocalSkeleton, matAnimate, joint.matLocal);
+
+        // build up the hierarchy if joints
+        // matGlobal = matGlobal(parent) * matLocal
+        if (joint.parentIndex == -1 || joint.parentIndex < 0) {
+            arraycopy(joint.matGlobal, joint.matLocal, 3, 4);
+//            System.arraycopy(joint.matGlobal, 0, joint.matLocal, 0, 12);
+        } else {
+            MS3DJoint parentJoint = model_joints.get(joint.parentIndex);
+            R_ConcatTransforms(parentJoint.matGlobal, joint.matLocal, joint.matGlobal);
+        }
+    }
+
+//                          [4],                    [4][]
+    void QuaternionMatrix(float[] quaternion, float[][] matrix)
+    {
+        matrix[0][0] = 1.0f - 2.0f * quaternion[1] * quaternion[1] - 2.0f * quaternion[2] * quaternion[2];
+        matrix[1][0] = 2.0f * quaternion[0] * quaternion[1] + 2.0f * quaternion[3] * quaternion[2];
+        matrix[2][0] = 2.0f * quaternion[0] * quaternion[2] - 2.0f * quaternion[3] * quaternion[1];
+
+        matrix[0][1] = 2.0f * quaternion[0] * quaternion[1] - 2.0f * quaternion[3] * quaternion[2];
+        matrix[1][1] = 1.0f - 2.0f * quaternion[0] * quaternion[0] - 2.0f * quaternion[2] * quaternion[2];
+        matrix[2][1] = 2.0f * quaternion[1] * quaternion[2] + 2.0f * quaternion[3] * quaternion[0];
+
+        matrix[0][2] = 2.0f * quaternion[0] * quaternion[2] + 2.0f * quaternion[3] * quaternion[1];
+        matrix[1][2] = 2.0f * quaternion[1] * quaternion[2] - 2.0f * quaternion[3] * quaternion[0];
+        matrix[2][2] = 1.0f - 2.0f * quaternion[0] * quaternion[0] - 2.0f * quaternion[1] * quaternion[1];
+    }
+
+//                          [4],        [4],                [4]
+    void QuaternionSlerp(float[] p, float[] q, float t, float[] qt )
+    {
+        int i;
+        double omega, cosom, sinom, sclp, sclq;
+
+        // decide if one of the quaternions is backwards
+        float a = 0;
+        float b = 0;
+        for (i = 0; i < 4; i++) {
+            a += (p[i]-q[i])*(p[i]-q[i]);
+            b += (p[i]+q[i])*(p[i]+q[i]);
+        }
+        if (a > b) {
+            for (i = 0; i < 4; i++) {
+                q[i] = -q[i];
+            }
+        }
+
+        cosom = p[0]*q[0] + p[1]*q[1] + p[2]*q[2] + p[3]*q[3];
+
+        if ((1.0 + cosom) > 0.00000001) {
+            if ((1.0 - cosom) > 0.00000001) {
+                omega = Math.acos( cosom );
+                sinom = Math.sin(omega);
+                sclp = Math.sin( (1.0 - t)*omega) / sinom;
+                sclq = Math.sin( t*omega ) / sinom;
+            }
+            else {
+                sclp = 1.0 - t;
+                sclq = t;
+            }
+            for (i = 0; i < 4; i++) {
+                qt[i] = (float) (sclp * p[i] + sclq * q[i]);
+            }
+        }
+        else {
+            qt[0] = -p[1];
+            qt[1] = p[0];
+            qt[2] = -p[3];
+            qt[3] = p[2];
+            sclp = Math.sin( (1.0 - t) * 0.5 * Math.PI);
+            sclq = Math.sin( t * 0.5 * Math.PI);
+            for (i = 0; i < 3; i++) {
+                qt[i] = (float) (sclp * p[i] + sclq * qt[i]);
+            }
+        }
+    }
+
+//                          [3],            [4]
+    void AngleQuaternion(float[] angles, float[] quaternion )
+    {
+        double angle;
+        double sr, sp, sy, cr, cp, cy;
+
+        // FIXME: rescale the inputs to 1/2 angle
+        angle = angles[2] * 0.5;
+        sy = Math.sin(angle);
+        cy = Math.cos(angle);
+        angle = angles[1] * 0.5;
+        sp = Math.sin(angle);
+        cp = Math.cos(angle);
+        angle = angles[0] * 0.5;
+        sr = Math.sin(angle);
+        cr = Math.cos(angle);
+
+        quaternion[0] = (float) (sr*cp*cy-cr*sp*sy); // X
+        quaternion[1] = (float) (cr*sp*cy+sr*cp*sy); // Y
+        quaternion[2] = (float) (cr*cp*sy-sr*sp*cy); // Z
+        quaternion[3] = (float) (cr*cp*cy+sr*sp*sy); // W
+    }
+
+//                          [3],   [3][4]
+    Vec3 TransformJoint(float[] v, float[][] m) {
+        Vec3 out = new Vec3();
+
+        // M00 M01 M02 M03				V0
+        //
+        // M10 M11 M12 M13				V1
+        //						*
+        // M20 M21 M22 M23				V2
+
+        out.x = m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2] + m[0][3];
+        out.y = m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2] + m[1][3];
+        out.z = m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2] + m[2][3];
+
+        return out;
+    }
+
+
+    Vec3 TransformVertex(MS3DVertex vertex) {
+        float[] out = new float[3];
+        int[] jointIndices = new int[4];
+        int[] jointWeights = new int[4];
+        FillJointIndicesAndWeights(vertex, jointIndices, jointWeights);
+
+        if (jointIndices[0] < 0 || jointIndices[0] >= (int) model_joints.size() || model_currentTime < 0.0f) {
+            out[0] = vertex.vertex[0];
+            out[1] = vertex.vertex[1];
+            out[2] = vertex.vertex[2];
+        } else {
+            // count valid weights
+            int numWeights = 0;
+            for (int i = 0; i < 4; i++) {
+                if (jointWeights[i] > 0 && jointIndices[i] >= 0 && jointIndices[i] < (int) model_joints.size())
+                    ++numWeights;
+                else
+                    break;
+            }
+
+            // init
+            out[0] = 0.0f;
+            out[1] = 0.0f;
+            out[2] = 0.0f;
+
+            float[] weights = {
+                (float) jointWeights[0] / 100.0f, (float) jointWeights[1] / 100.0f, (float) jointWeights[2] / 100.0f, (float) jointWeights[3] / 100.0f
+            } ;
+            if (numWeights == 0) {
+                numWeights = 1;
+                weights[0] = 1.0f;
+            }
+            // add weighted vertices
+            for (int i = 0; i < numWeights; i++) {
+			MS3DJoint joint = model_joints.get(jointIndices[i]);
+                float[] tmp = new float[3];
+                float[] vert = new float[3];
+                VectorITransform(vertex.vertex, joint.matGlobalSkeleton, tmp);
+                VectorTransform(tmp, joint.matGlobal, vert);
+
+                out[0] += vert[0] * weights[i];
+                out[1] += vert[1] * weights[i];
+                out[2] += vert[2] * weights[i];
+            }
+        }
+        Vec3 v = new Vec3(out[0], out[1], out[2]);
+        return v;
+    }
+
+    float DotProduct(float[] x, float[] y) {
+        return (x)[0]*(y)[0]+(x)[1]*(y)[1]+(x)[2]*(y)[2];
+    }
+
+//                              [3],      [3][4],       [3]
+    void VectorTransform (float[] in1, float[][] in2, float[] out)
+    {
+        out[0] = DotProduct(in1, in2[0]) + in2[0][3];
+        out[1] = DotProduct(in1, in2[1]) +	in2[1][3];
+        out[2] = DotProduct(in1, in2[2]) +	in2[2][3];
+    }
+
+//-----------------------------------------------------------------------
+//                          [3],        [3][4],         [3]
+    void VectorIRotate (float[] in1, float[][] in2, float[] out)
+    {
+        out[0] = in1[0]*in2[0][0] + in1[1]*in2[1][0] + in1[2]*in2[2][0];
+        out[1] = in1[0]*in2[0][1] + in1[1]*in2[1][1] + in1[2]*in2[2][1];
+        out[2] = in1[0]*in2[0][2] + in1[1]*in2[1][2] + in1[2]*in2[2][2];
+    }
+
+//                          [3] ,           [3][4],     [3]
+    void VectorITransform (float[] in1, float[][] in2, float[] out)
+    {
+        float[] tmp = new float[3];
+        tmp[0] = in1[0] - in2[0][3];
+        tmp[1] = in1[1] - in2[1][3];
+        tmp[2] = in1[2] - in2[2][3];
+        VectorIRotate(tmp, in2, out);
+    }
+
+//                                                          [4],                [4]
+    void FillJointIndicesAndWeights(MS3DVertex vertex, int[] jointIndices, int[] jointWeights) {
+        jointIndices[0] = vertex.boneId;
+        jointIndices[1] = vertex.boneIds[0];
+        jointIndices[2] = vertex.boneIds[1];
+        jointIndices[3] = vertex.boneIds[2];
+        jointWeights[0] = 100;
+        jointWeights[1] = 0;
+        jointWeights[2] = 0;
+        jointWeights[3] = 0;
+        if (vertex.weights[0] != 0 || vertex.weights[1] != 0 || vertex.weights[2] != 0) {
+            jointWeights[0] = vertex.weights[0];
+            jointWeights[1] = vertex.weights[1];
+            jointWeights[2] = vertex.weights[2];
+            jointWeights[3] = 100 - (vertex.weights[0] + vertex.weights[1] + vertex.weights[2]);
+        }
+    }
+
+    public void loadModel() {
+        //--------------------------------------------------------------
+        //----------------- Load Vertices
+        //--------------------------------------------------------------
+
+        SetupVertexArray();
+
+        //--------------------------------------------------------------
+        //----------------- Load Index Groups
+        //--------------------------------------------------------------
+
+        int[] gIdx = new int[numGroups];
+        for (int j = 0; j < numGroups; j++) {
+            gIdx[j] = 0;
+        }
+        int gIndex = 0;
+
+        for (int i = 0; i < numTriangles; i++) {
+            gIndex = model_triangles.get(i).groupIndex;
+            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles.get(i).vertexIndices[0];
+            gIdx[gIndex] = gIdx[gIndex] + 1;
+            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles.get(i).vertexIndices[1];
+            gIdx[gIndex] = gIdx[gIndex] + 1;
+            vertices_indices[gIndex][gIdx[gIndex]] = model_triangles.get(i).vertexIndices[2];
+            gIdx[gIndex] = gIdx[gIndex] + 1;
+
+            //--------------------------------------------------------------
+            //----------------- Load Vertices Normals
+            //--------------------------------------------------------------
+
+            normals_array[model_triangles.get(i).vertexIndices[0]] = model_triangles.get(i).vertexNormals[0][0];
+            normals_array[model_triangles.get(i).vertexIndices[0]] = model_triangles.get(i).vertexNormals[0][1];
+            normals_array[model_triangles.get(i).vertexIndices[0]] = model_triangles.get(i).vertexNormals[0][2];
+
+            normals_array[model_triangles.get(i).vertexIndices[1]] = model_triangles.get(i).vertexNormals[1][0];
+            normals_array[model_triangles.get(i).vertexIndices[1]] = model_triangles.get(i).vertexNormals[1][1];
+            normals_array[model_triangles.get(i).vertexIndices[1]] = model_triangles.get(i).vertexNormals[1][2];
+
+            normals_array[model_triangles.get(i).vertexIndices[2]] = model_triangles.get(i).vertexNormals[2][0];
+            normals_array[model_triangles.get(i).vertexIndices[2]] = model_triangles.get(i).vertexNormals[2][1];
+            normals_array[model_triangles.get(i).vertexIndices[2]] = model_triangles.get(i).vertexNormals[2][2];
+
+            //--------------------------------------------------------------
+            //----------------- Load Vertices Coordinates ( s for first_axis)
+            //--------------------------------------------------------------
+
+            tex_coord_array[model_triangles.get(i).vertexIndices[0] * 2] = model_triangles.get(i).s[0];
+            tex_coord_array[model_triangles.get(i).vertexIndices[1] * 2] = model_triangles.get(i).s[1];
+            tex_coord_array[model_triangles.get(i).vertexIndices[2] * 2] = model_triangles.get(i).s[2];
+
+            //--------------------------------------------------------------
+            //----------------- Load Vertices Coordinates ( t for second_axis)
+            //--------------------------------------------------------------
+
+            tex_coord_array[model_triangles.get(i).vertexIndices[0] * 2 + 1] = model_triangles.get(i).t[0];
+            tex_coord_array[model_triangles.get(i).vertexIndices[1] * 2 + 1] = model_triangles.get(i).t[1];
+            tex_coord_array[model_triangles.get(i).vertexIndices[2] * 2 + 1] = model_triangles.get(i).t[2];
+        }
+
+        //--------------------------------------------------------------
+        //----------------- Load Textures For Materials And Groups
+        //--------------------------------------------------------------
+
+        SetupTextureArray();
+
+        if (isJoint) {
+            SetupJointsArray();
+        }
+
+        model_vertices.clear();
+        model_triangles.clear();
+        model_groups.clear();
+        model_joints.clear();
+
+    }
+
+    int LoadTextureFromBitmapFileForMS3D(String filename) {
+//        BITMAPINFOHEADER bitmapInfoHeader;
+//        unsigned char *bitmapData;
+//
+//        bitmapData=LoadBitmapFileForMS3D(filename,&bitmapInfoHeader);
+//
+//        glGenTextures(1,&texture);
+//
+//        glBindTexture(GL_TEXTURE_2D,texture);
+//
+//        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+//        glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+//
+//        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
+//
+//        glTexImage2D(GL_TEXTURE_2D,0,GL_RGB,bitmapInfoHeader.biWidth,bitmapInfoHeader.biHeight,0,GL_RGB,GL_UNSIGNED_BYTE,bitmapData);
+        return 0;
+    }
+
+    void SetupTextureArray() {
+        for (int i = 0; i < numMaterials; i++) {
+            model_materials.get(i).id = LoadTextureFromBitmapFileForMS3D(model_materials.get(i).texture);//materialsArray[i]);
+            for (int j = 0; j < numGroups; j++) {
+                if (model_groups.get(j).materialIndex == i) {
+                    materialsIndex[j] = i;
+                }
+
+            }
+        }
+    }
+
+    void SetupVertexArray() {
+        for (int i = 0; i < numVertices; i++) {
+            //3 element of vertex for(x,y,z)
+            vertices_array[i * 3] = model_vertices.get(i).vertex[0];//x
+            vertices_array[i * 3 + 1] = model_vertices.get(i).vertex[1];//y
+            vertices_array[i * 3 + 2] = model_vertices.get(i).vertex[2];//z
+        }
+
+        for (int i = 0; i < model_totalFrames; i++) {
+            SetFrame(i);
+
+            for (int j = 0; j < numVertices; j++) {
+                MS3DVertex vertex =	model_vertices.get(j);
+                Vec3 v = TransformVertex(vertex);
+                //3 element of vertex for(x,y,z)
+                group_vertices_array[i][j * 3] = v.x;//model_vertices[i].vertex[0];//x
+                group_vertices_array[i][j * 3 + 1] = v.y;//model_vertices[i].vertex[1];//y
+                group_vertices_array[i][j * 3 + 2] = v.z;//model_vertices[i].vertex[2];//z
+            }
+        }
+    }
+
+    void SetupJointsArray() {
+        SetFrame(-1);
+        for (int i = 0; i < model_joints.size(); i++) {
+            Vec3 p = new Vec3();
+
+            int parentIdx = model_joints.get(i).parentIndex;
+            if (parentIdx > -1) {
+                p = TransformJoint(model_joints.get(i).pos, model_joints.get(parentIdx).matGlobal);
+            } else {
+                p.x = model_joints.get(i).pos[0];
+                p.y = model_joints.get(i).pos[1];
+                p.z = model_joints.get(i).pos[2];
+            }
+
+            joints_array[i * 3] = p.x;
+            joints_array[i * 3 + 1] = p.y;
+            joints_array[i * 3 + 2] = p.z;
+
+            color_joints_array[i * 3] = 0.9f;
+            color_joints_array[i * 3 + 1] = 0.8f;
+            color_joints_array[i * 3 + 2] = 0f;
+
+            p_color_joints_array[i * 3] = 1;
+            p_color_joints_array[i * 3 + 1] = 0;
+            p_color_joints_array[i * 3 + 2] = 0;
+
+        }
+
+        for (int i = 0; i < model_totalFrames; i++) {
+            SetFrame(i);
+
+            for (int j = 0; j < numJoints; j++) {
+                Vec3 p = new Vec3();
+
+                int parentIdx = model_joints.get(j).parentIndex;
+                if (parentIdx > -1) {
+                    p = TransformJoint(model_joints.get(j).pos, model_joints.get(parentIdx).matGlobal);
+                } else {
+                    p.x = model_joints.get(j).pos[0];
+                    p.y = model_joints.get(j).pos[1];
+                    p.z = model_joints.get(j).pos[2];
+                }
+
+                group_joints_array[i][j * 3] = p.x;
+                group_joints_array[i][j * 3 + 1] = p.y;
+                group_joints_array[i][j * 3 + 2] = p.z;
+            }
+        }
+
+        for (int i = 0; i < (model_joints.size() - 1); i++) {
+            joints_indices[i * 2] = (short) (i + 1);
+            joints_indices[i * 2 + 1] = (short) model_joints.get(i + 1).parentIndex;
+
+            p_joints_indices[i] = (short) i;
+        }
+        p_joints_indices[model_joints.size() - 1] = (short) (model_joints.size() - 1);
+    }
+
+    int GetNumberOfVertex() {
+        return numVertices;
+    }
+
+    int GetNumberOFGroups() {
+        return numGroups;
+    }
+
+    int GetNumberOfMaterials() {
+        return numMaterials;
+    }
+
+    int GetNumberOfIndexInGroup(int index) {
+        return numGroupIndices[index];
+    }
+
+    int GetNumberOfJoints() {
+        return numJoints;
+    }
+
+    int GetNumberOfTotalFrame() {
+        return model_totalFrames;
+    }
+
+    float GetAnimationFPS() {
+        return model_animationFps;
+    }
+
+    int GetTexturesArray(int index) {
+        return 0;
+    }
+
+    float[] GetVerticesArray() {
+        return vertices_array;
+    }
+
+    float[] GetGroupVerticesArray(int index) {
+        return group_vertices_array[index];
+    }
+
+    float[] GetTexCoordArray() {
+        return tex_coord_array;
+    }
+
+    short[] GetVerticesIndices(int index) {
+        return vertices_indices[index];
+    }
+
+    MS3DMaterial GetMaterial(int index) {
+        return model_materials.get(index);
+    }
+
+    int GetTransparencyMode() {
+        return model_transparencyMode;
+    }
+
+    float GetAlphaRef() {
+        return model_alphaRef;
+    }
+
+    int GetMaterialForGroup(int index) {
+        return materialsIndex[index];
+    }
+
+    float[] GetJointsArray() {
+        return joints_array;
+    }
+
+    float[] GetGroupJointsArray(int index) {
+        return group_joints_array[index];
+    }
+
+    float[] GetColorJointsArray() {
+        return color_joints_array;
+    }
+
+    float[] GetPColorJointsArray() {
+        return p_color_joints_array;
+    }
+
+    short[] GetJointsIndices() {
+        return joints_indices;
+    }
+
+    short[] GetPJointsIndices() {
+        return p_joints_indices;
+    }
+
+    boolean GetIsVertex() {
+        return isVertex;
+    }
+
+    boolean GetIsTriangle() {
+        return isTriangle;
+    }
+
+    boolean GetIsGroup() {
+        return isGroup;
+    }
+
+    boolean GetIsMaterial() {
+        return isMaterial;
+    }
+
+    boolean GetIsJoint() {
+        return isJoint;
+    }
 }
