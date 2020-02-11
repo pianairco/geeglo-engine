@@ -6,6 +6,7 @@ import org.lwjgl.Version;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.opengl.GL;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryStack;
 
 import java.nio.IntBuffer;
@@ -22,25 +23,52 @@ public class Main {
     // The window handle
     private long window;
 
+    public static void gluPerspective(float fovy, float aspect, float near, float far) {
+        float bottom = -near * (float) Math.tan(fovy / 2);
+        float top = -bottom;
+        float left = aspect * bottom;
+        float right = -left;
+        glFrustum(left, right, bottom, top, near, far);
+    }
+
+    int width, height;
+
+    public void initDisplay(int width, int height) {
+        this.width = width;
+        this.height = height;
+
+        String extensions = GL11.glGetString(GL11.GL_EXTENSIONS);
+
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glShadeModel(GL11.GL_SMOOTH);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDisable(GL11.GL_LIGHTING);
+
+        GL11.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        GL11.glClearDepth(1);
+
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        GL11.glViewport(0,0,width,height);
+
+        float aspect=(float)width/(float) height;
+
+        GL11.glMatrixMode(GL_PROJECTION);
+        GL11.glLoadIdentity();
+
+        gluPerspective(45,(float)width/(float)height,1,100000);
+
+        GL11.glMatrixMode(GL_MODELVIEW);
+        GL11.glLoadIdentity();
+    }
+
     public void run() {
         System.out.println("Hello LWJGL " + Version.getVersion() + "!");
 
         init();
 
-        int width = 480;
-        int height = 640;
-
-        glViewport(0,0, width, height);
-
-        float aspect=(float)width/(float) height;
-
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-
-//        gluPerspective(45,(float)width/(float)height,1,100000);
-
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
+        initDisplay(480, 640);
 
         loop();
 

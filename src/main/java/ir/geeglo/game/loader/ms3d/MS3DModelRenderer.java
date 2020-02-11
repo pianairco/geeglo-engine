@@ -6,12 +6,11 @@ import org.lwjgl.opengl.GL11.*;
 import org.lwjgl.*;
 import org.lwjgl.opengl.GL15;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
-import java.nio.ShortBuffer;
+import java.nio.*;
 
 import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.opengl.GL15.*;
+import static org.lwjgl.opengl.GL15.GL_STATIC_DRAW;
 
 public class MS3DModelRenderer {
     MS3DModelLoader model_loader;
@@ -157,10 +156,31 @@ public class MS3DModelRenderer {
 //        }
 //    }
 
+    public void buildModel1() {
+        FloatBuffer vetexBuffer = BufferUtils.createFloatBuffer(model_loader.GetVerticesArray().length);
+        vetexBuffer.put(model_loader.GetVerticesArray());
+        vetexBuffer.flip();
+
+        ShortBuffer indexBuffer = BufferUtils.createShortBuffer(model_loader.GetVerticesIndices(0).length);
+        indexBuffer.put(model_loader.GetVerticesIndices(0));
+        indexBuffer.flip();
+
+        // setup vertex positions buffer
+        int cubeVbo = glGenBuffers();
+        glBindBuffer(GL_ARRAY_BUFFER, cubeVbo);
+        glBufferData(GL_ARRAY_BUFFER, vetexBuffer, GL_STATIC_DRAW);
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glVertexPointer(3, GL_FLOAT, 0, 0);
+
+        // setup element buffer
+        int cubeEbo = glGenBuffers();
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, cubeEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexBuffer, GL_STATIC_DRAW);
+    }
+
     public void drawModel1() {
-        FloatBuffer verticesBuffer = BufferUtils.createFloatBuffer(model_loader.GetVerticesArray().length);
-        verticesBuffer.put(model_loader.GetVerticesArray());
-        verticesBuffer.flip();
+        // Render a simple cube
+        glDrawElements(GL_TRIANGLES, model_loader.GetVerticesIndices(0).length, GL_UNSIGNED_INT, 0L);
     }
 
 //    public void DrawModel() {

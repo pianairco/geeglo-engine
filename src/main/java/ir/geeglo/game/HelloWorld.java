@@ -37,6 +37,29 @@ public class HelloWorld {
 
 
     MS3DModelRenderer renderer;
+    int width, height;
+
+    public void initDisplay(int width, int height) {
+        this.width = width;
+        this.height = height;
+
+        String extensions = GL11.glGetString(GL11.GL_EXTENSIONS);
+
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glShadeModel(GL11.GL_SMOOTH);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
+        GL11.glDisable(GL11.GL_LIGHTING);
+
+        GL11.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        GL11.glClearDepth(1);
+
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        GL11.glViewport(0,0,width,height);
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glLoadIdentity();
+    }
 
     private void init() {
         MS3DModelLoader ms3DModelLoader = new MS3DModelLoader();
