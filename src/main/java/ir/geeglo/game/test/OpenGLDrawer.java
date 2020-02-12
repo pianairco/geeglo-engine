@@ -1,6 +1,5 @@
 package ir.geeglo.game.test;
-import ir.geeglo.game.loader.ms3d.MS3DModelLoader;
-import ir.geeglo.game.loader.ms3d.MS3DModelRenderer;
+
 import org.lwjgl.*;
 import org.lwjgl.glfw.*;
 import org.lwjgl.opengl.*;
@@ -18,6 +17,13 @@ public abstract class OpenGLDrawer {
 
     // The window handle
     private long window;
+    protected int width;
+    protected int height;
+
+    public OpenGLDrawer(int width, int height) {
+        this.width = width;
+        this.height = height;
+    }
 
     public void run() {
         System.out.println("Hello LWJGL " + Version.getVersion() + "!");
@@ -46,11 +52,13 @@ public abstract class OpenGLDrawer {
 
         // Configure GLFW
         glfwDefaultWindowHints(); // optional, the current window hints are already the default
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 1);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
 
         // Create the window
-        window = glfwCreateWindow(300, 300, "Hello World!", NULL, NULL);
+        window = glfwCreateWindow(width, height, "Hello World!", NULL, NULL);
         if ( window == NULL )
             throw new RuntimeException("Failed to create the GLFW window");
 
@@ -86,8 +94,6 @@ public abstract class OpenGLDrawer {
 
         // Make the window visible
         glfwShowWindow(window);
-
-        initScene();
     }
 
     private void loop() {
@@ -100,11 +106,15 @@ public abstract class OpenGLDrawer {
 
         // Set the clear color
         glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+
+        initScene();
 
         // Run the rendering loop until the user has attempted to close
         // the window or has pressed the ESCAPE key.
         while ( !glfwWindowShouldClose(window) ) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+//            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
             renderScene();
 
